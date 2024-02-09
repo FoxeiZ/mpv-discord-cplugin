@@ -10,76 +10,18 @@
 #include <string.h>
 #include <time.h>
 
+#include <mpv/client.h>
+
 #include "discord_rpc.h"
+#include "more_headers.h"
 
 static const char *APPLICATION_ID = "345229890980937739";
-static int FrustrationLevel = 0;
-static int64_t StartTime;
 static char SendPresence = 1;
-static char SendButtons = 0;
 static char Debug = 1;
-
-static int prompt(char *line, size_t size)
-{
-    int res;
-    char *nl;
-    printf("\n> ");
-    fflush(stdout);
-    res = fgets(line, (int)size, stdin) ? 1 : 0;
-    line[size - 1] = 0;
-    nl = strchr(line, '\n');
-    if (nl)
-    {
-        *nl = 0;
-    }
-    return res;
-}
-
-static void updateDiscordPresence()
-{
-    if (SendPresence)
-    {
-        char buffer[256];
-        DiscordRichPresence discordPresence;
-        memset(&discordPresence, 0, sizeof(discordPresence));
-        discordPresence.state = "West of House";
-        sprintf(buffer, "Frustration level: %d", FrustrationLevel);
-        discordPresence.details = buffer;
-        discordPresence.startTimestamp = StartTime;
-        discordPresence.endTimestamp = time(0) + 5 * 60;
-        discordPresence.largeImageKey = "canary-large";
-        discordPresence.smallImageKey = "ptb-small";
-        discordPresence.partyId = "party1234";
-        discordPresence.partySize = 1;
-        discordPresence.partyMax = 6;
-        discordPresence.partyPrivacy = DISCORD_PARTY_PUBLIC;
-        discordPresence.matchSecret = "xyzzy";
-        discordPresence.joinSecret = "join";
-        discordPresence.spectateSecret = "look";
-        discordPresence.instance = 0;
-
-        DiscordButton buttons[] = {
-            {.label = "Test", .url = "https://example.com"},
-            {.label = "Test 2", .url = "https://discord.gg/fortnite"},
-            {0, 0},
-        };
-
-        if (SendButtons)
-        {
-            discordPresence.buttons = buttons;
-        }
-
-        Discord_UpdatePresence(&discordPresence);
-    }
-    else
-    {
-        Discord_ClearPresence();
-    }
-}
 
 static void handleDiscordReady(const DiscordUser *connectedUser)
 {
-    if (!connectedUser->discriminator[0] || strcmp(connectedUser->discriminator, "0") == 0)
+    if (!connectedUser->discriminator[0] || strcmp(connectedUser->discriminator, "0") == 0 || strcmp(connectedUser->discriminator, "0000") == 0)
     {
         printf("\nDiscord: connected to user @%s (%s) - %s\n",
                connectedUser->username,
@@ -225,142 +167,49 @@ static void discordInit()
     Discord_Initialize(APPLICATION_ID, &handlers, 1, NULL);
 }
 
-static void gameLoop()
+static void discordShutdown()
 {
-    char line[512];
-    char *space;
-
-    StartTime = time(0);
-
-    printf("You are standing in an open field west of a white house.\n");
-    while (prompt(line, sizeof(line)))
+    if (Debug)
     {
-        if (line[0])
-        {
-            if (line[0] == 'q')
-            {
-                break;
-            }
-
-            if (line[0] == 't')
-            {
-                printf("Shutting off Discord.\n");
-                Discord_Shutdown();
-                continue;
-            }
-
-            if (line[0] == 'y')
-            {
-                printf("Reinit Discord.\n");
-                discordInit();
-                continue;
-            }
-
-            if (line[0] == 'c')
-            {
-                if (SendPresence)
-                {
-                    printf("Clearing presence information.\n");
-                    SendPresence = 0;
-                }
-                else
-                {
-                    printf("Restoring presence information.\n");
-                    SendPresence = 1;
-                }
-                updateDiscordPresence();
-                continue;
-            }
-
-            if (line[0] == 'b')
-            {
-                if (SendButtons)
-                {
-                    printf("Removing buttons.\n");
-                    SendButtons = 0;
-                }
-                else
-                {
-                    printf("Adding buttons.\n");
-                    SendButtons = 1;
-                }
-                updateDiscordPresence();
-                continue;
-            }
-
-            if (line[0] == 'i' && line[1])
-            {
-                if (line[1] == 'a')
-                {
-                    printf("Opening activity invite (type 1).\n");
-                    Discord_OpenActivityInvite(1);
-                    continue;
-                }
-
-                if (line[1] == '2')
-                { // does not seem to work
-                    printf("Opening activity invite (type 2).\n");
-                    Discord_OpenActivityInvite(2);
-                    continue;
-                }
-
-                if (line[1] == '0')
-                { // does not seem to work either...
-                    printf("Opening activity invite (type 0).\n");
-                    Discord_OpenActivityInvite(0);
-                    continue;
-                }
-
-                if (line[1] == 'g')
-                {
-                    printf("Opening guild invite.\n");
-                    Discord_OpenGuildInvite("fortnite");
-                    continue;
-                }
-            }
-
-            if (line[0] == 'd')
-            {
-                printf("Turning debug %s\n", Debug ? "off" : "on");
-                Debug = !Debug;
-                discordUpdateHandlers();
-                continue;
-            }
-
-            if (time(NULL) & 1)
-            {
-                printf("I don't understand that.\n");
-            }
-            else
-            {
-                space = strchr(line, ' ');
-                if (space)
-                {
-                    *space = 0;
-                }
-                printf("I don't know the word \"%s\".\n", line);
-            }
-
-            ++FrustrationLevel;
-
-            updateDiscordPresence();
-        }
-
-#ifdef DISCORD_DISABLE_IO_THREAD
-        Discord_UpdateConnection();
-#endif
-        Discord_RunCallbacks();
+        printf("[DEBUG] [local] Discord_Shutdown\n");
     }
+    Discord_Shutdown();
 }
 
-int main(int argc, char *argv[])
+static void discordCallback()
+{
+#ifdef DISCORD_DISABLE_IO_THREAD
+    Discord_UpdateConnection();
+#endif
+    Discord_RunCallbacks();
+}
+
+int mpv_open_cplugin(mpv_handle *handle)
 {
     discordInit();
+    while (1)
+    {
 
-    updateDiscordPresence();
+        mpv_event *event = mpv_wait_event(handle, -1);
+        if (event->event_id == MPV_EVENT_SHUTDOWN)
+            break;
 
-    gameLoop();
+        char *event_name = mpv_event_name(event->event_id);
+        int max_len = strlen(event_name) + 11;
+        char *event_string = (char *)malloc(max_len);
+        snprintf(event_string, max_len, "Event: %s", event_name);
+        printf("%s\n", event_string);
 
-    Discord_Shutdown();
+        DiscordRichPresence richPresence = {
+            .buttons = NULL,
+            .details = event_string,
+            .state = "Playing",
+        };
+        Discord_UpdatePresence(&richPresence);
+        discordCallback();
+        free(event_string);
+    }
+
+    discordShutdown();
     return 0;
 }

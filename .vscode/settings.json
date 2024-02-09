@@ -1,6 +1,5 @@
 {
     "files.associations": {
-        "stdint.h": "c",
-        "discord_rpc.h": "c"
+        "main.h": "c"
     }
 }
