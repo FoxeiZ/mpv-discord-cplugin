@@ -15,9 +15,10 @@
 #include "discord_rpc.h"
 #include "more_headers.h"
 
-static const char *APPLICATION_ID = "345229890980937739";
-static char SendPresence = 1;
-static char Debug = 1;
+static const char *APPLICATION_ID = "968883870520987678";
+static int IsEnable = 1;
+static int Debug = 1;
+static int64_t StartTime;
 
 static void handleDiscordReady(const DiscordUser *connectedUser)
 {
@@ -53,6 +54,9 @@ static void handleDebug(char isOut,
                         const char *message,
                         uint32_t messageLength)
 {
+    if (!Debug)
+        return;
+
     unsigned int len = (messageLength > 7 ? messageLength : 7) + 6 + 7 + 7 + 1;
     char *buf = (char *)malloc(len);
     char *direction = isOut ? "send" : "receive";
@@ -83,41 +87,6 @@ static void handleDiscordSpectate(const char *secret)
 
 static void handleDiscordJoinRequest(const DiscordUser *request)
 {
-    int response = -1;
-    char yn[4];
-    printf("\nDiscord: join request from %s#%s - %s\n",
-           request->username,
-           request->discriminator,
-           request->userId);
-    do
-    {
-        printf("Accept? (y/n)");
-        if (!prompt(yn, sizeof(yn)))
-        {
-            break;
-        }
-
-        if (!yn[0])
-        {
-            continue;
-        }
-
-        if (yn[0] == 'y')
-        {
-            response = DISCORD_REPLY_YES;
-            break;
-        }
-
-        if (yn[0] == 'n')
-        {
-            response = DISCORD_REPLY_NO;
-            break;
-        }
-    } while (1);
-    if (response != -1)
-    {
-        Discord_Respond(request->userId, response);
-    }
 }
 
 static void handleDiscordInvited(/* DISCORD_ACTIVITY_ACTION_TYPE_ */ int8_t type,
@@ -145,8 +114,7 @@ static void populateHandlers(DiscordEventHandlers *handlers)
     handlers->ready = handleDiscordReady;
     handlers->disconnected = handleDiscordDisconnected;
     handlers->errored = handleDiscordError;
-    if (Debug)
-        handlers->debug = handleDebug;
+    handlers->debug = handleDebug;
     handlers->joinGame = handleDiscordJoin;
     handlers->spectateGame = handleDiscordSpectate;
     handlers->joinRequest = handleDiscordJoinRequest;
@@ -184,32 +152,199 @@ static void discordCallback()
     Discord_RunCallbacks();
 }
 
-int mpv_open_cplugin(mpv_handle *handle)
+static void secondToClock(int secs, char *buf)
 {
-    discordInit();
-    while (1)
+    int hours = secs / 3600;
+    int minutes = (secs - hours * 3600) / 60;
+    int seconds = secs - (hours * 3600 + minutes * 60);
+    snprintf(buf, 9, "%02d:%02d:%02d", hours, minutes, seconds);
+}
+
+static int isStream(mpv_handle *handle)
+{
+    int ret;
+    char *path = mpv_get_property_string(handle, "path");
+
+    if (strstr(path, "http://") != NULL || strstr(path, "https://") != NULL)
     {
-
-        mpv_event *event = mpv_wait_event(handle, -1);
-        if (event->event_id == MPV_EVENT_SHUTDOWN)
-            break;
-
-        char *event_name = mpv_event_name(event->event_id);
-        int max_len = strlen(event_name) + 11;
-        char *event_string = (char *)malloc(max_len);
-        snprintf(event_string, max_len, "Event: %s", event_name);
-        printf("%s\n", event_string);
-
-        DiscordRichPresence richPresence = {
-            .buttons = NULL,
-            .details = event_string,
-            .state = "Playing",
-        };
-        Discord_UpdatePresence(&richPresence);
-        discordCallback();
-        free(event_string);
+        ret = 1;
+    }
+    else
+    {
+        ret = 0;
     }
 
-    discordShutdown();
+    mpv_free(path);
+    return ret;
+}
+
+static void updatePresence(DiscordRichPresence precence)
+{
+    if (Debug)
+    {
+        printf("[DEBUG] [local] Discord_UpdatePresence\n");
+        printf("\tstate: %s\n", precence.state);
+        printf("\tdetails: %s\n", precence.details);
+        printf("\tstartTimestamp: %d\n", precence.startTimestamp);
+        printf("\tendTimestamp: %d\n", precence.endTimestamp);
+        printf("\tlargeImageKey: %s\n", precence.largeImageKey);
+        printf("\tlargeImageText: %s\n", precence.largeImageText);
+        printf("\tsmallImageKey: %s\n", precence.smallImageKey);
+        printf("\tsmallImageText: %s\n", precence.smallImageText);
+        printf("\tpartyId: %d\n", precence.partyId);
+        printf("\tpartySize: %d\n", precence.partySize);
+        printf("\tpartyMax: %d\n", precence.partyMax);
+        printf("\tpartyPrivacy: %d\n", precence.partyPrivacy);
+        printf("\tmatchSecret: %s\n", precence.matchSecret);
+        printf("\tjoinSecret: %s\n", precence.joinSecret);
+        printf("\tspectateSecret: %s\n", precence.spectateSecret);
+        printf("\tinstance: %d\n", precence.instance);
+    }
+
+    Discord_UpdatePresence(&precence);
+    discordCallback();
+}
+
+static void getMPV_State(mpv_handle *handle, int *isPlaying, char *smallStateStr, char *smallStateImg)
+{
+    mpv_get_property(handle, "pause", MPV_FORMAT_FLAG, isPlaying);
+    *isPlaying = !*isPlaying;
+
+    if (!*isPlaying)
+    {
+        strcpy(smallStateStr, "Paused");
+        strcpy(smallStateImg, "pause");
+        return;
+    }
+
+    char *loopFile = mpv_get_property_string(handle, "loop-file");
+    if (strncmp(loopFile, "inf", 3) == 0)
+    {
+        strcpy(smallStateStr, "Looping");
+        strcpy(smallStateImg, "loop");
+        return;
+    }
+    mpv_free(loopFile);
+
+    char *loopPlaylist = mpv_get_property_string(handle, "loop-playlist");
+    if (strncmp(loopPlaylist, "inf", 3) == 0)
+    {
+        strcpy(smallStateStr, "Loop all");
+        strcpy(smallStateImg, "loop_playlist");
+        return;
+    }
+    mpv_free(loopPlaylist);
+
+    strcpy(smallStateStr, "Playing");
+    strcpy(smallStateImg, "play");
+}
+
+static void setRPC_ByMPVState(mpv_handle *handle)
+{
+    int isPlaying;
+    char state[256];
+    char *smallStateStr = malloc(9);  // max 8 bytes + \0 = 9
+    char *smallStateImg = malloc(14); // max 13 bytes + \0 = 14
+
+    // metadata
+    char *songTitle = mpv_get_property_string(handle, "media-title");
+    char *songArtist = mpv_get_property_string(handle, "metadata/by-key/artist");
+    if (songArtist != NULL)
+    {
+        snprintf(state, 256, "%s - %s", songArtist, songTitle);
+    }
+    else
+    {
+        snprintf(state, 256, "%s", songTitle);
+    }
+    mpv_free(songTitle);
+    mpv_free(songArtist);
+
+    // init rpc embed
+    getMPV_State(handle, &isPlaying, smallStateStr, smallStateImg);
+    DiscordRichPresence richPresence = {
+        .state = state,
+        .details = smallStateStr,
+        .smallImageKey = smallStateImg,
+        .smallImageText = smallStateStr,
+        .largeImageKey = "mpvlogo",
+        .largeImageText = "mpv",
+    };
+
+    // timestamp
+    int64_t currentTime = time(0);
+    int64_t startTimestamp, endTimestamp;
+    mpv_get_property(handle, "time-pos", MPV_FORMAT_INT64, &startTimestamp);
+    if (isPlaying)
+    {
+        mpv_get_property(handle, "duration", MPV_FORMAT_INT64, &endTimestamp);
+        richPresence.startTimestamp = currentTime + startTimestamp;
+        richPresence.endTimestamp = currentTime + endTimestamp;
+    }
+    else
+    {
+        richPresence.startTimestamp = currentTime + startTimestamp;
+        richPresence.endTimestamp = 0;
+    }
+
+    updatePresence(richPresence);
+    free(smallStateStr);
+    free(smallStateImg);
+}
+
+static void setRPC_Idle()
+{
+    DiscordRichPresence richPresence = {
+        .details = "Idling",
+        .smallImageKey = "idle",
+        .smallImageText = "Idle",
+        .largeImageKey = "mpvlogo",
+        .largeImageText = "mpv",
+    };
+    updatePresence(richPresence);
+}
+
+int mpv_open_cplugin(mpv_handle *handle)
+{
+    int isIdle;
+    int IsRunning = 1;
+
+    // init
+    discordInit();
+    mpv_observe_property(handle, 0, "pause", MPV_FORMAT_FLAG);
+
+    // main loop
+    while (IsRunning)
+    {
+        mpv_event *event = mpv_wait_event(handle, -1);
+        if (!IsEnable)
+            continue;
+
+        switch (event->event_id)
+        {
+        case MPV_EVENT_FILE_LOADED:
+        case MPV_EVENT_PROPERTY_CHANGE:
+            setRPC_ByMPVState(handle);
+            break;
+        case MPV_EVENT_IDLE:
+            mpv_get_property(handle, "idle-active", MPV_FORMAT_FLAG, &isIdle);
+            if (isIdle)
+                setRPC_Idle();
+            break;
+        case MPV_EVENT_SHUTDOWN:
+            IsRunning = 0;
+            discordShutdown();
+            break;
+        default:
+            if (Debug)
+            {
+                const char *event_name = mpv_event_name(event->event_id);
+                if (event_name != NULL)
+                    printf("mpv event %s\n", event_name);
+            }
+            break;
+        }
+    }
+
     return 0;
 }
