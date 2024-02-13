@@ -1,6 +1,9 @@
 {
     "files.associations": {
         "main.h": "c",
-        "discord_rpc.h": "c"
-    }
+        "discord_rpc.h": "c",
+        "string": "c",
+        "format": "c"
+    },
+    "C_Cpp.default.compilerPath": "/usr/bin/clang"
 }

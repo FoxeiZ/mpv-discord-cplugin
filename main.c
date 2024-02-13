@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <regex.h>
 
 #include <mpv/client.h>
 
@@ -17,6 +18,7 @@
 
 static const char *APPLICATION_ID = "968883870520987678";
 static int IsEnable = 1;
+static int EnableButton = 0;
 static int Debug = 1;
 static int64_t StartTime;
 
@@ -160,10 +162,43 @@ static void secondToClock(int secs, char *buf)
     snprintf(buf, 9, "%02d:%02d:%02d", hours, minutes, seconds);
 }
 
+static char *getVideoId(mpv_handle *handle)
+{
+    char *path = mpv_get_property_string(handle, "path");
+    char *regexString = "(.*?)(^|\\/|v=)([a-z0-9_-]{11})(.*)?";
+    size_t maxGroups = 4;
+
+    regex_t regexCompiled;
+    regmatch_t groupArray[maxGroups];
+
+    if (regcomp(&regexCompiled, regexString, REG_EXTENDED | REG_ICASE))
+    {
+        printf("Could not compile regular expression.\n");
+        regfree(&regexCompiled);
+        return NULL;
+    };
+
+    char *videoId = malloc(11 * sizeof(char));
+    if (regexec(&regexCompiled, path, maxGroups, groupArray, 0) == 0)
+    {
+        strncpy(videoId, path + groupArray[3].rm_so, 11);
+        videoId[11] = 0;
+    }
+
+    mpv_free(path);
+    regfree(&regexCompiled);
+    return videoId;
+}
+
 static int isStream(mpv_handle *handle)
 {
     int ret;
     char *path = mpv_get_property_string(handle, "path");
+
+    if (path == NULL)
+    {
+        return 0;
+    }
 
     if (strstr(path, "http://") != NULL || strstr(path, "https://") != NULL)
     {
@@ -260,6 +295,32 @@ static void setRPC_ByMPVState(mpv_handle *handle)
     mpv_free(songTitle);
     mpv_free(songArtist);
 
+    char largeImageKey[256];
+    DiscordButton buttons[2] = {};
+    if (isStream(handle))
+    {
+        // set video thumbnail
+        char *videoId = getVideoId(handle);
+        if (videoId != NULL)
+        {
+            snprintf(largeImageKey, 256, "https://owo.foxeiz2004.workers.dev/yt-thumb?video_Id=%s", videoId);
+            free(videoId);
+        }
+
+        // set rpc button
+        if (EnableButton)
+        {
+            char *path = mpv_get_property_string(handle, "path");
+            buttons[0].label = "Stream";
+            buttons[0].url = path;
+            mpv_free(path);
+        }
+    }
+    else
+    {
+        strcpy(largeImageKey, "mpvlogo");
+    }
+
     // init rpc embed
     getMPV_State(handle, &isPlaying, smallStateStr, smallStateImg);
     DiscordRichPresence richPresence = {
@@ -267,23 +328,24 @@ static void setRPC_ByMPVState(mpv_handle *handle)
         .details = smallStateStr,
         .smallImageKey = smallStateImg,
         .smallImageText = smallStateStr,
-        .largeImageKey = "mpvlogo",
+        .largeImageKey = largeImageKey,
         .largeImageText = "mpv",
+        .buttons = buttons,
     };
 
     // timestamp
-    int64_t currentTime = time(0);
+    int64_t currentTime = time(NULL);
     int64_t startTimestamp, endTimestamp;
     mpv_get_property(handle, "time-pos", MPV_FORMAT_INT64, &startTimestamp);
     if (isPlaying)
     {
         mpv_get_property(handle, "duration", MPV_FORMAT_INT64, &endTimestamp);
-        richPresence.startTimestamp = currentTime + startTimestamp;
-        richPresence.endTimestamp = currentTime + endTimestamp;
+        richPresence.startTimestamp = currentTime;
+        richPresence.endTimestamp = currentTime + endTimestamp - startTimestamp;
     }
     else
     {
-        richPresence.startTimestamp = currentTime + startTimestamp;
+        richPresence.startTimestamp = currentTime;
         richPresence.endTimestamp = 0;
     }
 
@@ -312,6 +374,7 @@ int mpv_open_cplugin(mpv_handle *handle)
     // init
     discordInit();
     mpv_observe_property(handle, 0, "pause", MPV_FORMAT_FLAG);
+    mpv_observe_property(handle, 0, "seeking", MPV_FORMAT_FLAG);
 
     // main loop
     while (IsRunning)
@@ -324,6 +387,7 @@ int mpv_open_cplugin(mpv_handle *handle)
         {
         case MPV_EVENT_FILE_LOADED:
         case MPV_EVENT_PROPERTY_CHANGE:
+        case MPV_EVENT_END_FILE:
             setRPC_ByMPVState(handle);
             break;
         case MPV_EVENT_IDLE:
