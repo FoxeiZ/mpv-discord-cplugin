@@ -13,7 +13,7 @@
 
 static const char *APPLICATION_ID = "968883870520987678";
 static int IsEnable = 1;
-static int EnableButton = 1;
+static int EnableButton = 0;
 static int Debug = 0;
 static DiscordRichPresence currentPresence;
 
@@ -135,9 +135,7 @@ static void discordInit()
 static void discordShutdown()
 {
     if (Debug)
-    {
         printf("[DEBUG] [local] Discord_Shutdown\n");
-    }
     Discord_Shutdown();
 }
 
@@ -191,18 +189,12 @@ static int isStream(mpv_handle *handle)
     char *path = mpv_get_property_string(handle, "path");
 
     if (path == NULL)
-    {
         return 0;
-    }
 
     if (strstr(path, "http://") != NULL || strstr(path, "https://") != NULL)
-    {
         ret = 1;
-    }
     else
-    {
         ret = 0;
-    }
 
     mpv_free(path);
     return ret;
@@ -393,14 +385,11 @@ int mpv_open_cplugin(mpv_handle *handle)
     while (1)
     {
         mpv_event *event = mpv_wait_event(handle, -1);
-        if (!IsEnable || event == NULL)
-            continue;
 
         if (event->event_id == MPV_EVENT_SHUTDOWN)
-        {
             break;
-        }
-
+        if (!IsEnable)
+            continue;
         if (event->reply_userdata == MPV_EVENT_IDLE)
         {
             setRPC_Idle();
