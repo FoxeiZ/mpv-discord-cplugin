@@ -1,6 +1,5 @@
 #define _CRT_SECURE_NO_WARNINGS /* thanks Microsoft */
 
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,7 +15,6 @@ static const char *APPLICATION_ID = "968883870520987678";
 static int IsEnable = 1;
 static int EnableButton = 1;
 static int Debug = 0;
-static int64_t StartTime;
 static DiscordRichPresence currentPresence;
 
 static void handleDiscordReady(const DiscordUser *connectedUser)
