@@ -378,6 +378,7 @@ int mpv_open_cplugin(mpv_handle *handle)
     mpv_observe_property(handle, 0, "seeking", MPV_FORMAT_STRING);
     mpv_observe_property(handle, 0, "loop-file", MPV_FORMAT_FLAG);
     mpv_observe_property(handle, 0, "loop-playlist", MPV_FORMAT_FLAG);
+    mpv_observe_property(handle, 0, "speed", MPV_FORMAT_STRING);
     // re-use event id enum
     mpv_observe_property(handle, MPV_EVENT_IDLE, "idle-active", MPV_FORMAT_FLAG);
 
