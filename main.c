@@ -1,7 +1,3 @@
-/*
-    This is a simple example in C of using the rich presence API asynchronously.
-*/
-
 #define _CRT_SECURE_NO_WARNINGS /* thanks Microsoft */
 
 #include <stdint.h>
@@ -385,7 +381,6 @@ static void setRPC_EndFile(mpv_handle *handle)
 int mpv_open_cplugin(mpv_handle *handle)
 {
     int isIdle;
-    int IsRunning = 1;
 
     // init
     discordInit();
@@ -397,11 +392,16 @@ int mpv_open_cplugin(mpv_handle *handle)
     mpv_observe_property(handle, MPV_EVENT_IDLE, "idle-active", MPV_FORMAT_FLAG);
 
     // main loop
-    while (IsRunning)
+    while (1)
     {
         mpv_event *event = mpv_wait_event(handle, -1);
-        if (!IsEnable)
+        if (!IsEnable || event == NULL)
             continue;
+
+        if (event->event_id == MPV_EVENT_SHUTDOWN)
+        {
+            break;
+        }
 
         if (event->reply_userdata == MPV_EVENT_IDLE)
         {
@@ -419,10 +419,6 @@ int mpv_open_cplugin(mpv_handle *handle)
                 setRPC_Idle();
             else
                 setRPC_ByMPVState(handle);
-            break;
-        case MPV_EVENT_SHUTDOWN:
-            IsRunning = 0;
-            discordShutdown();
             break;
         default:
             if (Debug)
