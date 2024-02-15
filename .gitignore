@@ -1,4 +1,7 @@
 /build*/
+test.*
+test
+*.out
 # /.vscode/
 /thirdparty/
 .vs/
