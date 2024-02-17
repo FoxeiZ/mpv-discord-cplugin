@@ -381,6 +381,11 @@ static void parseConfigParam(char *str, char **key, char **value)
         strncpy(*key, str, pos - str);
         strcpy(*value, pos + 1);
     }
+    else
+    {
+        strcpy(*key, str);
+        strcpy(*value, "");
+    }
 }
 
 static int parseToBool(char *str)
