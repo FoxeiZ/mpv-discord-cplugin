@@ -3,8 +3,12 @@
         "main.h": "c",
         "discord_rpc.h": "c",
         "string": "c",
-        "format": "c"
+        "format": "c",
+        "render.h": "c",
+        "stream_cb.h": "c",
+        "list": "c",
+        "stdio.h": "c"
     },
     "C_Cpp.default.compilerPath": "/usr/bin/clang",
-    "C_Cpp.codeAnalysis.clangTidy.enabled": true
+    "C_Cpp.codeAnalysis.clangTidy.enabled": true,
 }

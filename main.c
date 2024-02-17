@@ -5,15 +5,16 @@
 #include <string.h>
 #include <time.h>
 #include <regex.h>
+#include <ctype.h>
 
 #include <mpv/client.h>
 
 #include "discord_rpc.h"
 #include "more_headers.h"
 
-static const char *APPLICATION_ID = "968883870520987678";
+static char *APPLICATION_ID = "968883870520987678";
 static int IsEnable = 1;
-static int EnableButton = 0;
+static int EnableButton = 1;
 static int Debug = 0;
 static DiscordRichPresence currentPresence;
 
@@ -368,11 +369,89 @@ static void setRPC_EndFile(mpv_handle *handle)
     // richPresence.
 }
 
+static void parseConfigParam(char *str, char **key, char **value)
+{
+
+    if (!str || !key || !value)
+        return;
+
+    char *pos = strstr(str, "=");
+    if (pos)
+    {
+        strncpy(*key, str, pos - str);
+        strcpy(*value, pos + 1);
+    }
+}
+
+static int parseToBool(char *str)
+{
+    if (!str)
+        return 0;
+
+    for (int i = 0; str[i]; i++)
+    {
+        str[i] = tolower(str[i]);
+    }
+
+    if (str && strcmp(str, "true") == 0)
+        return 1;
+
+    if (str && strcmp(str, "yes") == 0)
+        return 1;
+
+    if (str && strcmp(str, "1") == 0)
+        return 1;
+
+    return 0;
+}
+
+static void readConfig(mpv_handle *handle)
+{
+    char *options;
+    mpv_get_property(handle, "script-opts", MPV_FORMAT_STRING, &options);
+
+    if (options == NULL)
+        return;
+
+    char *token = strtok(options, ",");
+    while (token != NULL)
+    {
+        char *key = malloc(strlen(token) + 1);
+        char *value = malloc(strlen(token) + 1);
+        parseConfigParam(token, &key, &value);
+
+        if (key && value)
+        {
+            if (strcmp(key, "discordrpc-enable") == 0)
+            {
+                IsEnable = parseToBool(value);
+            }
+            else if (strcmp(key, "discordrpc-button") == 0)
+            {
+                EnableButton = parseToBool(value);
+            }
+            else if (strcmp(key, "discordrpc-debug") == 0)
+            {
+                Debug = parseToBool(value);
+            }
+            else if (strcmp(key, "discordrpc-id") == 0)
+            {
+                strcpy(APPLICATION_ID, value);
+            }
+        }
+
+        token = strtok(NULL, ",");
+        free(key);
+        free(value);
+    }
+}
+
 int mpv_open_cplugin(mpv_handle *handle)
 {
     int isIdle;
 
     // init
+    readConfig(handle);
     discordInit();
     mpv_observe_property(handle, 0, "pause", MPV_FORMAT_FLAG);
     mpv_observe_property(handle, 0, "seeking", MPV_FORMAT_STRING);
