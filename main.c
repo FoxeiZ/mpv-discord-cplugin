@@ -327,8 +327,12 @@ static void setRPC_ByMPVState(mpv_handle *handle)
         .smallImageText = smallStateStr,
         .largeImageKey = largeImageKey,
         .largeImageText = "mpv",
-        .buttons = buttons,
     };
+
+    if (EnableButton)
+    {
+        richPresence.buttons = buttons;
+    }
 
     // timestamp
     int64_t currentTime = time(NULL);
