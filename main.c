@@ -297,7 +297,8 @@ static void setRPC_ByMPVState(mpv_handle *handle)
     char largeImageKey[256];
     DiscordButton buttons[2] = {};
     getMPV_State(handle, &isPlaying, smallStateStr, smallStateImg);
-    if (isPlaying && isStream(handle))
+
+    if (isStream(handle))
     {
         // set video thumbnail
         char *videoId = getVideoId(handle);
