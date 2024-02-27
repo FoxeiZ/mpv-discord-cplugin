@@ -15,7 +15,7 @@
 static char *APPLICATION_ID = "968883870520987678";
 static int IsEnable = 1;
 static int EnableButton = 1;
-static int Debug = 1;
+static int Debug = 0;
 static DiscordRichPresence currentPresence;
 
 static void handleDiscordReady(const DiscordUser *connectedUser)
