@@ -71,5 +71,5 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ matrix.build_type }}
+          name: ${{ matrix.c_compiler }}_${{ matrix.build_type }}
           path: ${{ steps.strings.outputs.build-output-dir }}
