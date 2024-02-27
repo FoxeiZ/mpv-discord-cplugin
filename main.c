@@ -293,6 +293,7 @@ static void setRPC_ByMPVState(mpv_handle *handle)
     mpv_free(songArtist);
 
     // init rpc embed
+    int buttonCount = 0;
     char largeImageKey[256];
     DiscordButton buttons[2] = {};
     getMPV_State(handle, &isPlaying, smallStateStr, smallStateImg);
@@ -312,6 +313,7 @@ static void setRPC_ByMPVState(mpv_handle *handle)
             char *path = mpv_get_property_string(handle, "path");
             buttons[0].label = "Stream";
             buttons[0].url = path;
+            buttonCount++;
             mpv_free(path);
         }
     }
@@ -329,7 +331,7 @@ static void setRPC_ByMPVState(mpv_handle *handle)
         .largeImageText = "mpv",
     };
 
-    if (EnableButton)
+    if (EnableButton && buttonCount > 0)
     {
         richPresence.buttons = buttons;
     }
