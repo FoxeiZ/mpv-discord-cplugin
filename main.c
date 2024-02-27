@@ -201,6 +201,23 @@ static int isStream(mpv_handle *handle)
     return ret;
 }
 
+static int isYoutube(mpv_handle *handle)
+{
+    int ret;
+    char *path = mpv_get_property_string(handle, "path");
+
+    if (path == NULL)
+        return 0;
+
+    if (strstr(path, "youtube.com") != NULL || strstr(path, "youtu.be") != NULL)
+        ret = 1;
+    else
+        ret = 0;
+
+    mpv_free(path);
+    return ret;
+}
+
 static void updatePresence(DiscordRichPresence precence)
 {
     if (Debug)
@@ -298,7 +315,7 @@ static void setRPC_ByMPVState(mpv_handle *handle)
     DiscordButton buttons[2] = {};
     getMPV_State(handle, &isPlaying, smallStateStr, smallStateImg);
 
-    if (isStream(handle))
+    if (isYoutube(handle))
     {
         // set video thumbnail
         char *videoId = getVideoId(handle);
